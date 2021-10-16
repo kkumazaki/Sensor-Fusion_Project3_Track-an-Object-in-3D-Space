@@ -27,6 +27,13 @@ int main(int argc, const char *argv[])
 {
     /* INIT VARIABLES AND DATA STRUCTURES */
 
+   // Change the location of combinations for efficiency
+    string detectorType = "FAST";  // Task MP.2 Modern fast methods: FAST, BRISK, ORB, AKAZE, SIFT // SIFT detector is only good with SIFT descriptor
+    string descriptorType = "ORB"; // BRIEF, ORB, FREAK, AKAZE, SIFT, BRISK // SIFT/AKAZE descriptor is only good with SIFT/AKAZE detector (AKAZE detector is good with other descriptors)
+    string matcherType = "MAT_BF";        // MAT_BF, MAT_FLANN // Basically use BF because it's assigned in Lesson instruction
+    string descType = "DES_BINARY"; // DES_BINARY, DES_HOG // Basically use BINARY because it's faster // Change the string name to avoid duplication
+    string selectorType = "SEL_KNN";       // SEL_NN, SEL_KNN // Use KNN with minDescDistRatio: 0.8
+
     // data location
     string dataPath = "../";
 
@@ -72,13 +79,13 @@ int main(int argc, const char *argv[])
     double sensorFrameRate = 10.0 / imgStepWidth; // frames per second for Lidar and camera
     int dataBufferSize = 2;       // no. of images which are held in memory (ring buffer) at the same time
     vector<DataFrame> dataBuffer; // list of data frames which are held in memory at the same time
-    bool bVis = false;            // visualize results
+    bool bVis = false;            // visualize results // Try "true" only when close to the final step.
 
     /* MAIN LOOP OVER ALL IMAGES */
 
     for (size_t imgIndex = 0; imgIndex <= imgEndIndex - imgStartIndex; imgIndex+=imgStepWidth)
     {
-        /* LOAD IMAGE INTO BUFFER */
+        /* (1) LOAD IMAGE INTO BUFFER */
 
         // assemble filenames for current index
         ostringstream imgNumber;
@@ -96,7 +103,7 @@ int main(int argc, const char *argv[])
         cout << "#1 : LOAD IMAGE INTO BUFFER done" << endl;
 
 
-        /* DETECT & CLASSIFY OBJECTS */
+        /* (2) DETECT & CLASSIFY OBJECTS */
 
         float confThreshold = 0.2;
         float nmsThreshold = 0.4;        
@@ -106,7 +113,7 @@ int main(int argc, const char *argv[])
         cout << "#2 : DETECT & CLASSIFY OBJECTS done" << endl;
 
 
-        /* CROP LIDAR POINTS */
+        /* (3) CROP LIDAR POINTS */
 
         // load 3D Lidar points from file
         string lidarFullFilename = imgBasePath + lidarPrefix + imgNumber.str() + lidarFileType;
@@ -114,6 +121,7 @@ int main(int argc, const char *argv[])
         loadLidarFromFile(lidarPoints, lidarFullFilename);
 
         // remove Lidar points based on distance properties
+        //float minZ = -1.2, maxZ = -0.5, minX = 2.0, maxX = 20.0, maxY = 2.0, minR = 0.1; // focus on ego lane // Decrease unnecessary detection
         float minZ = -1.5, maxZ = -0.9, minX = 2.0, maxX = 20.0, maxY = 2.0, minR = 0.1; // focus on ego lane
         cropLidarPoints(lidarPoints, minX, maxX, maxY, minZ, maxZ, minR);
     
@@ -122,7 +130,7 @@ int main(int argc, const char *argv[])
         cout << "#3 : CROP LIDAR POINTS done" << endl;
 
 
-        /* CLUSTER LIDAR POINT CLOUD */
+        /* (4) CLUSTER LIDAR POINT CLOUD */
 
         // associate Lidar points with camera-based ROI
         float shrinkFactor = 0.10; // shrinks each bounding box by the given percentage to avoid 3D object merging at the edges of an ROI
@@ -142,23 +150,27 @@ int main(int argc, const char *argv[])
         // REMOVE THIS LINE BEFORE PROCEEDING WITH THE FINAL PROJECT
         continue; // skips directly to the next image without processing what comes beneath
 
-        /* DETECT IMAGE KEYPOINTS */
+        /* (5) DETECT IMAGE KEYPOINTS */
 
-        // convert current image to grayscale
+        // convert current image to grayscale (only for keypoint detection/description/matching)
         cv::Mat imgGray;
         cv::cvtColor((dataBuffer.end()-1)->cameraImg, imgGray, cv::COLOR_BGR2GRAY);
 
         // extract 2D keypoints from current image
         vector<cv::KeyPoint> keypoints; // create empty feature list for current image
-        string detectorType = "SHITOMASI";
+        //string detectorType = "SHITOMASI";
 
-        if (detectorType.compare("SHITOMASI") == 0)
-        {
-            detKeypointsShiTomasi(keypoints, imgGray, false);
+        if (detectorType.compare("SHITOMASI") == 0) {
+            detKeypointsShiTomasi(keypoints, imgGray, bVis);
+            //detKeypointsShiTomasi(keypoints, imgGray, false);
         }
-        else
-        {
-            //...
+        else if (detectorType.compare("HARRIS") == 0) {
+            detKeypointsHarris(keypoints, imgGray, bVis);
+            //detKeypointsHarris(keypoints, imgGray, false);
+        }
+        else {
+            detKeypointsModern(keypoints, imgGray, detectorType, bVis);
+            //detKeypointsModern(keypoints, imgGray, detectorType, false);
         }
 
         // optional : limit number of keypoints (helpful for debugging and learning)
@@ -181,10 +193,10 @@ int main(int argc, const char *argv[])
         cout << "#5 : DETECT KEYPOINTS done" << endl;
 
 
-        /* EXTRACT KEYPOINT DESCRIPTORS */
+        /* (6) EXTRACT KEYPOINT DESCRIPTORS */
 
         cv::Mat descriptors;
-        string descriptorType = "BRISK"; // BRISK, BRIEF, ORB, FREAK, AKAZE, SIFT
+        //string descriptorType = "BRISK"; // BRISK, BRIEF, ORB, FREAK, AKAZE, SIFT
         descKeypoints((dataBuffer.end() - 1)->keypoints, (dataBuffer.end() - 1)->cameraImg, descriptors, descriptorType);
 
         // push descriptors for current frame to end of data buffer
@@ -196,16 +208,18 @@ int main(int argc, const char *argv[])
         if (dataBuffer.size() > 1) // wait until at least two images have been processed
         {
 
-            /* MATCH KEYPOINT DESCRIPTORS */
+            /* (7) MATCH KEYPOINT DESCRIPTORS */
 
             vector<cv::DMatch> matches;
-            string matcherType = "MAT_BF";        // MAT_BF, MAT_FLANN
-            string descriptorType = "DES_BINARY"; // DES_BINARY, DES_HOG
-            string selectorType = "SEL_NN";       // SEL_NN, SEL_KNN
+            //string matcherType = "MAT_BF";        // MAT_BF, MAT_FLANN
+            //string descType = "DES_BINARY"; // DES_BINARY, DES_HOG
+            //string descriptorType = "DES_BINARY"; // DES_BINARY, DES_HOG
+            //string selectorType = "SEL_NN";       // SEL_NN, SEL_KNN
 
             matchDescriptors((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints,
                              (dataBuffer.end() - 2)->descriptors, (dataBuffer.end() - 1)->descriptors,
-                             matches, descriptorType, matcherType, selectorType);
+                             matches, descType, matcherType, selectorType);
+                             //matches, descriptorType, matcherType, selectorType);
 
             // store matches in current data frame
             (dataBuffer.end() - 1)->kptMatches = matches;
@@ -213,7 +227,7 @@ int main(int argc, const char *argv[])
             cout << "#7 : MATCH KEYPOINT DESCRIPTORS done" << endl;
 
             
-            /* TRACK 3D OBJECT BOUNDING BOXES */
+            /* (8) TRACK 3D OBJECT BOUNDING BOXES */
 
             //// STUDENT ASSIGNMENT
             //// TASK FP.1 -> match list of 3D objects (vector<BoundingBox>) between current and previous frame (implement ->matchBoundingBoxes)
@@ -227,7 +241,7 @@ int main(int argc, const char *argv[])
             cout << "#8 : TRACK 3D OBJECT BOUNDING BOXES done" << endl;
 
 
-            /* COMPUTE TTC ON OBJECT IN FRONT */
+            /* (9) COMPUTE TTC ON OBJECT IN FRONT */
 
             // loop over all BB match pairs
             for (auto it1 = (dataBuffer.end() - 1)->bbMatches.begin(); it1 != (dataBuffer.end() - 1)->bbMatches.end(); ++it1)
