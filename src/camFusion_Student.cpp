@@ -8,6 +8,8 @@
 #include "camFusion.hpp"
 #include "dataStructures.h"
 
+#include <fstream>
+
 using namespace std;
 
 
@@ -109,9 +111,11 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
         // augment object with some key data
         char str1[200], str2[200];
         sprintf(str1, "id=%d, #pts=%d", it1->boxID, (int)it1->lidarPoints.size());
-        putText(topviewImg, str1, cv::Point2f(left-250, bottom+50), cv::FONT_ITALIC, 2, currColor);
+        putText(topviewImg, str1, cv::Point2f(left-50, bottom+50), cv::FONT_ITALIC, 0.5, currColor);
+        //putText(topviewImg, str1, cv::Point2f(left-250, bottom+50), cv::FONT_ITALIC, 2, currColor);
         sprintf(str2, "xmin=%2.2f m, yw=%2.2f m", xwmin, ywmax-ywmin);
-        putText(topviewImg, str2, cv::Point2f(left-250, bottom+125), cv::FONT_ITALIC, 2, currColor);  
+        putText(topviewImg, str2, cv::Point2f(left-50, bottom+20), cv::FONT_ITALIC, 0.5, currColor);
+        //putText(topviewImg, str1, cv::Point2f(left-250, bottom+50), cv::FONT_ITALIC, 2, currColor);
     }
 
     // plot distance markers
@@ -127,6 +131,9 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
     string windowName = "3D Objects";
     cv::namedWindow(windowName, 1);
     cv::imshow(windowName, topviewImg);
+
+    // save image data
+    //cv::imwrite("../result/test.png", topviewImg);
 
     if(bWait)
     {
@@ -153,11 +160,173 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
 void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
                      std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC)
 {
-    // ...
+    // (1) Calculate the mean of the Lidar points for the robust calculation.
+    // This calculation is needed only for either Prev or Curr because vehicle doesn't move so quickly.
+    // (The Lidar points can be disperse, anyway )
+    float xMean = 0;
+    for (auto it1 = lidarPointsPrev.begin(); it1 != lidarPointsPrev.end(); ++it1){
+        xMean += it1->x; // world position in m with x facing forward from sensor
+    }
+    xMean = xMean/(float)lidarPointsPrev.size();
+
+    cout << "xMean: " << xMean << endl;
+
+    // (2) Robust calculation of the vehicle end position.
+    // Calculate the average x distance of Lidar points near from the xMean.
+    float distancePrev = 0;
+    float distanceCurr = 0;
+
+    for (auto it1 = lidarPointsPrev.begin(); it1 != lidarPointsPrev.end(); ++it1){
+        // world coordinates
+        distancePrev += it1->x; // world position in m with x facing forward from sensor
+    }
+    distancePrev = distancePrev/(float)lidarPointsPrev.size();
+
+    for (auto it1 = lidarPointsCurr.begin(); it1 != lidarPointsCurr.end(); ++it1){
+        // world coordinates
+        distanceCurr += it1->x; // world position in m with x facing forward from sensor
+    }
+    distanceCurr = distanceCurr/(float)lidarPointsCurr.size();
+
+    cout << "distancePrev: " << distancePrev << endl;
+    cout << "distanceCurr: " << distanceCurr << endl;
+
 }
 
 
 void matchBoundingBoxes(std::vector<cv::DMatch> &matches, std::map<int, int> &bbBestMatches, DataFrame &prevFrame, DataFrame &currFrame)
 {
-    // ...
+    //bool debug = false;
+    bool debug = true;
+    
+    // Debug information
+    int prevBBID, currBBID;
+    int prevCount[prevFrame.boundingBoxes.size()][2];
+    int currCount[currFrame.boundingBoxes.size()][2];
+    int prevCountMax = 0;
+    int currCountMax = 0;
+    
+    // Necessary information
+    int bothBBID;
+    int bothCount[currFrame.boundingBoxes.size()][2];
+    int bothCountMax = 0;
+
+    int i, j;
+
+    // Initialize the matxices
+    for (i = 0; i < prevFrame.boundingBoxes.size(); i++){
+        prevCount[i][0] = -1;
+        prevCount[i][1] = 0;
+    }
+    for (i = 0; i < currFrame.boundingBoxes.size(); i++){
+        currCount[i][0] = -1;
+        bothCount[i][0] = -1;
+        currCount[i][1] = 0;
+        bothCount[i][1] = 0;
+    }
+
+    // pixel coordinates 
+    cv::Point ptMatchesPrev; 
+    cv::Point ptMatchesCurr;
+ 
+    for (auto it1 = matches.begin(); it1 != matches.end(); ++it1){
+        // Index of each matched keypoints
+        int prev_idx = it1->queryIdx; 
+        int curr_idx = it1->trainIdx;
+      
+        /*---------------- debug start-------------------*/
+        // (1) Count matched keypoints in each prevFrame and currFrame.
+        if (debug){
+            i = 0;
+            for (auto it2 = prevFrame.boundingBoxes.begin(); it2 != prevFrame.boundingBoxes.end(); ++it2){
+                ptMatchesPrev.x = prevFrame.keypoints[prev_idx].pt.x;
+                ptMatchesPrev.y = prevFrame.keypoints[prev_idx].pt.y;         
+                // check wether point is within the bounding box
+                if (it2->roi.contains(ptMatchesPrev)){
+                    prevCount[i][0] = it2->boxID;// Input bounding box id
+                    prevCount[i][1] += 1;
+                }
+                if (prevCount[i][1] > prevCountMax){
+                    prevCountMax = prevCount[i][1];
+                    prevBBID = it2->boxID; // set max counts ID
+                }
+                i++;
+            }
+
+            i = 0;
+            for (auto it2 = currFrame.boundingBoxes.begin(); it2 != currFrame.boundingBoxes.end(); ++it2){
+                ptMatchesCurr.x =  currFrame.keypoints[curr_idx].pt.x;
+                ptMatchesCurr.y =  currFrame.keypoints[curr_idx].pt.y;
+                // check wether point is within the bounding box
+                if (it2->roi.contains(ptMatchesCurr)){
+                    currCount[i][0] = it2->boxID;// Input bounding box id
+                    currCount[i][1] += 1;
+                }
+                if (currCount[i][1] > currCountMax){
+                    currCountMax = currCount[i][1];
+                    currBBID = it2->boxID; // set max counts ID
+                }
+                i++;
+            }
+        }
+        /*---------------- debug end-------------------*/
+
+        // (2) Count matched keypoints in both prevFrame and currFrame.
+        i = 0;
+        for (auto it2 = prevFrame.boundingBoxes.begin(); it2 != prevFrame.boundingBoxes.end(); ++it2){
+            ptMatchesPrev.x = prevFrame.keypoints[prev_idx].pt.x;
+            ptMatchesPrev.y = prevFrame.keypoints[prev_idx].pt.y;
+            // check wether point is within the bounding box
+            if (it2->roi.contains(ptMatchesPrev)){
+                 for (auto it3 = currFrame.boundingBoxes.begin(); it3 != currFrame.boundingBoxes.end(); ++it3){
+                     if (it3->boxID == it2->boxID){
+                        ptMatchesCurr.x =  currFrame.keypoints[curr_idx].pt.x;
+                        ptMatchesCurr.y =  currFrame.keypoints[curr_idx].pt.y;
+                        if (it3->roi.contains(ptMatchesCurr)){
+                            bothCount[i][0] = it3->boxID;// Input bounding box id
+                            bothCount[i][1] += 1;
+                        }
+                        if (bothCount[i][1] > bothCountMax){
+                            bothCountMax = bothCount[i][1];
+                            bothBBID = it3->boxID;
+                        }
+                     }
+                 }
+            }
+            i++;
+        }        
+    }
+
+    // Return the bounding box ID with the highest number of matched keypoints
+    bbBestMatches[0] = bothBBID;
+    bbBestMatches[1] = bothBBID;
+    //bbBestMatches[0] = prevBBID;
+    //bbBestMatches[1] = currBBID;
+
+    cout << "-----------------------------------------" << endl;
+    cout << "bbBestMatches: both = " << bothBBID << endl;
+
+    j = 0;
+    for (auto it2 = currFrame.boundingBoxes.begin(); it2 != currFrame.boundingBoxes.end(); ++it2){
+        cout << "bothCount[bbID]" << bothCount[j][0] << ", bothCount[count]" << bothCount[j][1] << endl;
+        j++;  
+    }   
+
+    if (debug){
+        cout << "-----------------------------------------" << endl;
+        cout << "[debug]bbBestMatches: prev = " << prevBBID << endl;
+        j = 0;
+        for (auto it2 = prevFrame.boundingBoxes.begin(); it2 != prevFrame.boundingBoxes.end(); ++it2){
+            cout << "prevCount[bbID]" << prevCount[j][0] << ", prevCount[count]" << prevCount[j][1] << endl;
+            j++;  
+        }
+        cout << "-----------------------------------------" << endl;
+        cout << "[debug]bbBestMatches: curr = " << currBBID << endl;
+        j = 0;
+        for (auto it2 = currFrame.boundingBoxes.begin(); it2 != currFrame.boundingBoxes.end(); ++it2){
+            cout << "currCount[bbID]" << currCount[j][0] << ", currCount[count]" << currCount[j][1] << endl;
+            j++;    
+        }
+        cout << "-----------------------------------------" << endl;
+    }
 }

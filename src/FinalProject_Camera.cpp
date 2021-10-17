@@ -76,10 +76,14 @@ int main(int argc, const char *argv[])
     P_rect_00.at<double>(2,0) = 0.000000e+00; P_rect_00.at<double>(2,1) = 0.000000e+00; P_rect_00.at<double>(2,2) = 1.000000e+00; P_rect_00.at<double>(2,3) = 0.000000e+00;    
 
     // misc
-    double sensorFrameRate = 10.0 / imgStepWidth; // frames per second for Lidar and camera
+    double sensorFrameRate = 10.0 / imgStepWidth; // frames per second for Lidar and camera // 10.0Hz
     int dataBufferSize = 2;       // no. of images which are held in memory (ring buffer) at the same time
     vector<DataFrame> dataBuffer; // list of data frames which are held in memory at the same time
     bool bVis = false;            // visualize results // Try "true" only when close to the final step.
+
+    // Debug file
+    string filename = "../result/result.txt";
+    ofstream outputfile1(filename);
 
     /* MAIN LOOP OVER ALL IMAGES */
 
@@ -109,7 +113,8 @@ int main(int argc, const char *argv[])
         float nmsThreshold = 0.4;        
         detectObjects((dataBuffer.end() - 1)->cameraImg, (dataBuffer.end() - 1)->boundingBoxes, confThreshold, nmsThreshold,
                       yoloBasePath, yoloClassesFile, yoloModelConfiguration, yoloModelWeights, bVis);
-
+        // output here is "boundingBoxes"
+        
         cout << "#2 : DETECT & CLASSIFY OBJECTS done" << endl;
 
 
@@ -121,8 +126,8 @@ int main(int argc, const char *argv[])
         loadLidarFromFile(lidarPoints, lidarFullFilename);
 
         // remove Lidar points based on distance properties
-        //float minZ = -1.2, maxZ = -0.5, minX = 2.0, maxX = 20.0, maxY = 2.0, minR = 0.1; // focus on ego lane // Decrease unnecessary detection
-        float minZ = -1.5, maxZ = -0.9, minX = 2.0, maxX = 20.0, maxY = 2.0, minR = 0.1; // focus on ego lane
+        float minZ = -1.2, maxZ = -0.5, minX = 2.0, maxX = 20.0, maxY = 2.0, minR = 0.1; // focus on ego lane // Decrease unnecessary detection of road surface
+        //float minZ = -1.5, maxZ = -0.9, minX = 2.0, maxX = 20.0, maxY = 2.0, minR = 0.1; // focus on ego lane
         cropLidarPoints(lidarPoints, minX, maxX, maxY, minZ, maxZ, minR);
     
         (dataBuffer.end() - 1)->lidarPoints = lidarPoints;
@@ -137,10 +142,13 @@ int main(int argc, const char *argv[])
         clusterLidarWithROI((dataBuffer.end()-1)->boundingBoxes, (dataBuffer.end() - 1)->lidarPoints, shrinkFactor, P_rect_00, R_rect_00, RT);
 
         // Visualize 3D objects
+        //bVis = false;
         bVis = true;
         if(bVis)
         {
-            show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(2000, 2000), true);
+            show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(500, 1000), true);
+            //show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(1000, 2000), true);
+            //show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(2000, 2000), true);
         }
         bVis = false;
 
@@ -148,7 +156,7 @@ int main(int argc, const char *argv[])
         
         
         // REMOVE THIS LINE BEFORE PROCEEDING WITH THE FINAL PROJECT
-        continue; // skips directly to the next image without processing what comes beneath
+        //continue; // skips directly to the next image without processing what comes beneath
 
         /* (5) DETECT IMAGE KEYPOINTS */
 
@@ -233,6 +241,7 @@ int main(int argc, const char *argv[])
             //// TASK FP.1 -> match list of 3D objects (vector<BoundingBox>) between current and previous frame (implement ->matchBoundingBoxes)
             map<int, int> bbBestMatches;
             matchBoundingBoxes(matches, bbBestMatches, *(dataBuffer.end()-2), *(dataBuffer.end()-1)); // associate bounding boxes between current and previous frame using keypoint matches
+            cout << "bbBestMatches: prev=" << bbBestMatches[0] << ", curr=" << bbBestMatches[1] << endl;
             //// EOF STUDENT ASSIGNMENT
 
             // store matches in current data frame
@@ -253,6 +262,8 @@ int main(int argc, const char *argv[])
                     if (it1->second == it2->boxID) // check wether current match partner corresponds to this BB
                     {
                         currBB = &(*it2);
+                        // Debug
+                        cout << "Step#9: currBB->lidarPoints.size: " << currBB->lidarPoints.size() << endl;
                     }
                 }
 
@@ -261,12 +272,15 @@ int main(int argc, const char *argv[])
                     if (it1->first == it2->boxID) // check wether current match partner corresponds to this BB
                     {
                         prevBB = &(*it2);
+                        // Debug
+                        cout << "Step#9: prevBB->lidarPoints.size: " << prevBB->lidarPoints.size() << endl;
                     }
                 }
 
                 // compute TTC for current match
                 if( currBB->lidarPoints.size()>0 && prevBB->lidarPoints.size()>0 ) // only compute TTC if we have Lidar points
                 {
+                    cout << "Step#9: compute TTC" << endl;
                     //// STUDENT ASSIGNMENT
                     //// TASK FP.2 -> compute time-to-collision based on Lidar data (implement -> computeTTCLidar)
                     double ttcLidar; 
@@ -306,6 +320,9 @@ int main(int argc, const char *argv[])
         }
 
     } // eof loop over all images
+
+    // Close file
+    outputfile1.close();
 
     return 0;
 }
