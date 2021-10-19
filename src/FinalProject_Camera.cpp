@@ -34,6 +34,15 @@ int main(int argc, const char *argv[])
     string descType = "DES_BINARY"; // DES_BINARY, DES_HOG // Basically use BINARY because it's faster // Change the string name to avoid duplication
     string selectorType = "SEL_KNN";       // SEL_NN, SEL_KNN // Use KNN with minDescDistRatio: 0.8
 
+    bool bVis = true;            // visualize results // Try "true" only when close to the final step.
+    //bool bVis = false;            // visualize results // Try "true" only when close to the final step.
+    bool bWait = true;           // true: stop at 3Dview and final view part each time.
+    //bool bWait = false;           // true: stop at 3Dview and final view part each time.
+
+    // Debug file
+    string filename = "../result/detector_" + detectorType + "_descripter_" + descriptorType + ".txt";
+    ofstream outputfile1(filename);
+
     // data location
     string dataPath = "../";
 
@@ -79,11 +88,11 @@ int main(int argc, const char *argv[])
     double sensorFrameRate = 10.0 / imgStepWidth; // frames per second for Lidar and camera // 10.0Hz
     int dataBufferSize = 2;       // no. of images which are held in memory (ring buffer) at the same time
     vector<DataFrame> dataBuffer; // list of data frames which are held in memory at the same time
-    bool bVis = false;            // visualize results // Try "true" only when close to the final step.
-
-    // Debug file
-    string filename = "../result/result.txt";
-    ofstream outputfile1(filename);
+    // Change location of the following setting into the top of main function
+    //bool bVis = true;            // visualize results // Try "true" only when close to the final step.
+    //bool bVis = false;            // visualize results // Try "true" only when close to the final step.
+    //bool bWait = true;           // true: stop at 3Dview and final view part each time.
+    //bool bWait = false;           // true: stop at 3Dview and final view part each time.
 
     /* MAIN LOOP OVER ALL IMAGES */
 
@@ -146,7 +155,8 @@ int main(int argc, const char *argv[])
         bVis = true;
         if(bVis)
         {
-            show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(500, 1000), true);
+            show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(500, 1000), bWait);
+            //show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(500, 1000), true);
             //show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(1000, 2000), true);
             //show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(2000, 2000), true);
         }
@@ -241,7 +251,7 @@ int main(int argc, const char *argv[])
             //// TASK FP.1 -> match list of 3D objects (vector<BoundingBox>) between current and previous frame (implement ->matchBoundingBoxes)
             map<int, int> bbBestMatches;
             matchBoundingBoxes(matches, bbBestMatches, *(dataBuffer.end()-2), *(dataBuffer.end()-1)); // associate bounding boxes between current and previous frame using keypoint matches
-            cout << "bbBestMatches: prev=" << bbBestMatches[0] << ", curr=" << bbBestMatches[1] << endl;
+            //cout << "bbBestMatches: prev=" << bbBestMatches[0] << ", curr=" << bbBestMatches[1] << endl;
             //// EOF STUDENT ASSIGNMENT
 
             // store matches in current data frame
@@ -263,7 +273,7 @@ int main(int argc, const char *argv[])
                     {
                         currBB = &(*it2);
                         // Debug
-                        cout << "Step#9: currBB->lidarPoints.size: " << currBB->lidarPoints.size() << endl;
+                        //cout << "currBB[" << it2->boxID << "]->lidarPoints.size: " << currBB->lidarPoints.size() << endl;
                     }
                 }
 
@@ -273,7 +283,7 @@ int main(int argc, const char *argv[])
                     {
                         prevBB = &(*it2);
                         // Debug
-                        cout << "Step#9: prevBB->lidarPoints.size: " << prevBB->lidarPoints.size() << endl;
+                        //cout << "prevBB[" << it2->boxID << "]->lidarPoints.size: " << prevBB->lidarPoints.size() << endl;
                     }
                 }
 
@@ -287,12 +297,20 @@ int main(int argc, const char *argv[])
                     computeTTCLidar(prevBB->lidarPoints, currBB->lidarPoints, sensorFrameRate, ttcLidar);
                     //// EOF STUDENT ASSIGNMENT
 
+                    outputfile1 << "iamageID: ";
+                    outputfile1 << imgIndex;
+                    outputfile1 << endl << "ttcLidar[sec]: ";
+                    outputfile1 << ttcLidar << endl;
+
                     //// STUDENT ASSIGNMENT
                     //// TASK FP.3 -> assign enclosed keypoint matches to bounding box (implement -> clusterKptMatchesWithROI)
                     //// TASK FP.4 -> compute time-to-collision based on camera (implement -> computeTTCCamera)
                     double ttcCamera;
                     clusterKptMatchesWithROI(*currBB, (dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, (dataBuffer.end() - 1)->kptMatches);                    
                     computeTTCCamera((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera);
+                    
+                    outputfile1 << "ttcCamera[sec]: ";
+                    outputfile1 << ttcCamera << endl;
                     //// EOF STUDENT ASSIGNMENT
 
                     bVis = true;
@@ -309,8 +327,11 @@ int main(int argc, const char *argv[])
                         string windowName = "Final Results : TTC";
                         cv::namedWindow(windowName, 4);
                         cv::imshow(windowName, visImg);
-                        cout << "Press key to continue to next frame" << endl;
-                        cv::waitKey(0);
+
+                        if (bWait){
+                            cout << "Press key to continue to next frame" << endl;
+                            cv::waitKey(0);
+                        }
                     }
                     bVis = false;
 
