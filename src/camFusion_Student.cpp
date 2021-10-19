@@ -144,8 +144,8 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
 void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, std::vector<cv::DMatch> &kptMatches)
 {
     // debug view
-    bool debView = false;
-    //bool debView = true;
+    //bool debView = false;
+    bool debView = true;
 
     // pixel coordinates 
     cv::Point ptMatchesPrev; 
@@ -181,10 +181,10 @@ void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint
         cout << "kptMatches size inside boundingBox (including outliers): " << boundingBox.kptMatches.size() << endl;    
         cout << endl << "distanceMean: " << distanceMean << endl;
         cout << "Before erase points: " << endl;
-        for (auto it1 = boundingBox.kptMatches.begin(); it1 != boundingBox.kptMatches.end() - 1; ++it1)
-        { 
-            cout << "it1->trainIdx: " << it1->trainIdx << ", it1->queryIdx: " << it1->queryIdx << endl;
-        }
+        //for (auto it1 = boundingBox.kptMatches.begin(); it1 != boundingBox.kptMatches.end() - 1; ++it1)
+        //{ 
+        //    cout << "it1->trainIdx: " << it1->trainIdx << ", it1->queryIdx: " << it1->queryIdx << endl;
+        //}
     }
 
     // Erase kptMatches if distance is a lot more than mean.
@@ -210,19 +210,19 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
                       std::vector<cv::DMatch> kptMatches, double frameRate, double &TTC, cv::Mat *visImg)
 {
     // debug view
-    bool debView = false;
-    //bool debView = true;
+    //bool debView = false;
+    bool debView = true;
     if (debView){
         cout << "---------computeTTCCamera function: start---------" << endl;
-        for (auto it1 = kptMatches.begin(); it1 != kptMatches.end() - 1; ++it1)
-        { 
-            cout << "it1->trainIdx: " << it1->trainIdx << ", it1->queryIdx: " << it1->queryIdx << endl;
-        }
+        //for (auto it1 = kptMatches.begin(); it1 != kptMatches.end() - 1; ++it1)
+        //{ 
+        //    cout << "it1->trainIdx: " << it1->trainIdx << ", it1->queryIdx: " << it1->queryIdx << endl;
+        //}
         cout << "kptMatches size: " << kptMatches.size() << endl;
         cout << "kptsPrev size: " << kptsPrev.size() << ", kptsCurr size: " << kptsCurr.size() << endl;
         cout << "frameRate: " << frameRate << endl;
     }
-    // Reference: Udacity Sf, Lesson 3 "compute_ttc_camera.cpp"
+    // Reference: Udacity SF, Lesson 3 "compute_ttc_camera.cpp"
     // compute distance ratios between all matched keypoints
     vector<double> distRatios; // stores the distance ratios for all keypoints between curr. and prev. frame
     int i = 0;
