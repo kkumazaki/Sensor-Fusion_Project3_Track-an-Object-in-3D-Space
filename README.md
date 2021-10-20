@@ -12,7 +12,7 @@ The program schematic shows what I already have accomplished and what's still mi
 <img src="images/course_code_structure.png" width="779" height="414" />
 
 ## 2. Goal
-In this final project, you will implement the missing parts in the schematic. To do this, you will complete four major tasks:  
+In this final project, I implemented the missing parts in the schematic. To do this, I completed four major tasks: 
 - (1)	I developed a way to match 3D objects over time by using keypoint correspondences.  
 - (2) I computed the TTC based on Lidar measurements.  
 - (3) I proceeded to do the same using the camera, which requires to first associate keypoint matches to regions of interest and then to compute the TTC based on those matches.  
@@ -41,14 +41,15 @@ I cloned the basic repository from [Udacity](https://github.com/udacity/SFND_3D_
 ### *: Please refer to [writeup](Writeup_of_Project3.pdf) for details.
 ### (1) Match 3D Objects  
 ### Task FP.1
-In this task, I implemented the method "matchBoundingBoxes", which takes as input both the previous and the current data frames and provides as output the ids of the matched regions of interest (i.e. the boxID property)“. Matches must be the ones with the highest number of keypoint correspondences.  
-<img src="images/FP1_output_image.png"  width="400" />
+In this task, I implemented the method "matchBoundingBoxes", which takes as input both the previous and the current data frames and provides as output the ids of the matched regions of interest (i.e. the boxID property). Matches must be the ones with the highest number of keypoint correspondences.  
+<img src="images/FP1_output_image.png"  width="500" />
 
 ### (2) Compute Lidar-based TTC
 ### Task FP.2 : Compute Lidar-based TTC
 In this part of the final project, my task is to compute the time-to-collision for all matched 3D objects based on Lidar measurements alone.  I referred to the "Lesson 3: Engineering a Collision Detection System" of this course to revisit the theory behind TTC estimation show as below.  
 <img src="images/FP2_lidarTTC.png"  width="400" />  
-<img src="images/FP2_lidar_distance_image.png"  width="500" />
+I take 2 steps to calculate the distance to remove outliers as below.  
+<img src="images/FP2_lidar_distance_image.png"  width="600" />
 
 
 ### (3) Compute Camera-based TTC
@@ -56,31 +57,31 @@ In this part of the final project, my task is to compute the time-to-collision f
 Before a TTC estimation of Camera, I need to find all keypoint matches that belong to each 3D object. 
 I can do this by simply checking whether the corresponding keypoints are within the region of interest in the camera image. All matches which satisfy this condition should be added to a vector. 
 There are outliers among my matches, so I should calculate a robust mean of all the euclidean distances between keypoint matches and then remove those that are too far away from the mean.  
-<img src="images/FP3_keypoint_correspondences.png"  width="300" />  
+<img src="images/FP3_keypoint_correspondences.png"  width="400" />  
 
 ### Task FP.4 : Compute Camera-based TTC
 Once keypoint matches have been added to the bounding boxes, the next step is to compute the TTC estimate. I refer Lesson 3 "compute_ttc_camera.cpp" and use the code sample there as a starting point for this task here. 
-Camera TTC is shown below.
+Camera TTC is shown below.  
 <img src="images/FP4_cameraTTC.png"  width="600" />  
 
 ### (4) Performance Evaluation
 ### Task FP.5 : Performance Evaluation 1
 This exercise is about conducting tests with the final project code, especially with regard to the Lidar part. 
 Look for several examples where I have the impression that the Lidar-based TTC estimate is way off. 
-Once I have found those, describe my observations and provide a sound argumentation why I think this happened.  
-<img src="images/FP5_LidarTTC.png"  width="400" />  
+Once I have found those, describe my observations and provide a sound argumentation why I think this happened.   
+<img src="images/FP5_LidarTTC.png"  width="600" />  
 
 ### Task FP.6 : Performance Evaluation 2
 ### (1)Basic result and analysis of Camera TTC
-This last exercise is about running the different detector / descriptor combinations and looking at the differences in TTC estimation. Find out which methods perform best and also include several examples where camera-based TTC estimation is way off. As with Lidar, I describe my observations again and also look into potential reasons. This is the last task in the final project.
-<img src="images/Fig6_CameraTTC.png"  width="400" /> 
+This last exercise is about running the different detector / descriptor combinations and looking at the differences in TTC estimation. Find out which methods perform best and also include several examples where camera-based TTC estimation is way off. As with Lidar, I describe my observations again and also look into potential reasons. This is the last task in the final project.  
+<img src="images/Fig6_CameraTTC.png"  width="600" /> 
 
 ### (2)Compare Camera TTC with different kinds of combinations
 The task is complete once all detector / descriptor combinations implemented in previous chapters have been compared with regard to the TTC estimate on a frame-by-frame basis. To facilitate the comparison, a spreadsheet and graph should be used to represent the different TTCs.  
 
 Detector: FAST & descriptor: FREAK has one unstable TTC, so it’s not the best one.
-FAST & BRIEF and FAST & ORB are almost same, but FAST & BRIEF is a little better.  
-<img src="images/FP6_final.png"  width="400" /> 
+FAST & BRIEF and FAST & ORB are almost same, but FAST & BRIEF is a little better.   
+<img src="images/FP6_final.png"  width="600" /> 
 
 ### **As a conclusion, “detector: FAST & descriptor: BRIEF” is the best combination in Project3.**
 
